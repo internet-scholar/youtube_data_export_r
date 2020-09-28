@@ -427,7 +427,7 @@ def main():
                     timespan=60)
     finally:
         logger.save_to_s3()
-        #logger.recreate_athena_table()
+        # logger.recreate_athena_table()
 
 
 if __name__ == '__main__':

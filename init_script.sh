@@ -1,5 +1,5 @@
 #!/bin/bash
-# suggested EC2 instance: t3a.medium
+# suggested AWS EC2 instance: t3a.medium
 sudo timedatectl set-timezone UTC
 sudo apt update -y
 sudo apt install -y python3-pip
