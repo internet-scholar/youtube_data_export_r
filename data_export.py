@@ -7,10 +7,10 @@ import logging
 RECOMMENDATION = """
 select
   youtube_related_video.creation_date recommendation_date,
-  snippet_trending.id trending_video_id,
-  snippet_trending.snippet.publishedAt trending_published_at,
-  snippet_trending.snippet.channelId trending_channel_id,
-  category_for_trending.title category_trending,
+  snippet_trending.id seed_video_id,
+  snippet_trending.snippet.publishedAt seed_published_at,
+  snippet_trending.snippet.channelId seed_channel_id,
+  category_for_trending.title category_seed,
   snippet_recommended.id recommended_video_id,
   snippet_recommended.snippet.publishedAt recommended_published_at,
   snippet_recommended.snippet.channelId recommended_channel_id,
@@ -33,29 +33,29 @@ where
 CREATE_TABLE_RECOMMENDATION = """
 CREATE TABLE recommendation (
   recommendation_date TEXT,
-  trending_video_id TEXT,
-  trending_published_at TEXT,
-  trending_channel_id TEXT,
-  category_trending TEXT,
+  seed_video_id TEXT,
+  seed_published_at TEXT,
+  seed_channel_id TEXT,
+  category_seed TEXT,
   recommended_video_id TEXT,
   recommended_published_at TEXT,
   recommended_channel_id TEXT,
   category_recommended TEXT,
   rank INT,
-  PRIMARY KEY (recommendation_date, trending_video_id, rank)
+  PRIMARY KEY (recommendation_date, seed_video_id, rank)
 )
 """
 
 INSERT_TABLE_RECOMMENDATION = """
-INSERT INTO recommendation (recommendation_date, trending_video_id, trending_published_at,
-                            trending_channel_id, category_trending, recommended_video_id,
+INSERT INTO recommendation (recommendation_date, seed_video_id, seed_published_at,
+                            seed_channel_id, category_seed, recommended_video_id,
                             recommended_published_at, recommended_channel_id, category_recommended, rank)
 SELECT
     recommendation_date,
-    trending_video_id,
-    trending_published_at,
-    trending_channel_id,
-    category_trending,
+    seed_video_id,
+    seed_published_at,
+    seed_channel_id,
+    category_seed,
     recommended_video_id,
     recommended_published_at,
     recommended_channel_id,
@@ -64,10 +64,10 @@ SELECT
 FROM recommendation_aux
 """
 
-UPDATE_CATEGORY_TRENDING = """
+UPDATE_CATEGORY_SEED = """
 update recommendation
-set category_trending = NULL
-where category_trending = 'Null Value'
+set category_seed = NULL
+where category_seed = 'Null Value'
 """
 
 UPDATE_CATEGORY_RECOMMENDED = """
@@ -123,16 +123,16 @@ group by
   b.channel_id;
 """
 
-UPDATE_TRENDING_USER_COUNT = """
+UPDATE_SEED_USER_COUNT = """
 UPDATE recommendation
-SET trending_user_count = (
+SET seed_user_count = (
     SELECT common_users_count
     FROM youtube_channel_common_twitter_users
-    WHERE channel_1 = trending_channel_id and
-          channel_2 = trending_channel_id and
+    WHERE channel_1 = seed_channel_id and
+          channel_2 = seed_channel_id and
           creation_date = recommendation_date
 )
-WHERE recommendation.trending_user_count IS NULL
+WHERE recommendation.seed_user_count IS NULL
 """
 
 UPDATE_RECOMMENDED_USER_COUNT = """
@@ -152,7 +152,7 @@ UPDATE recommendation
 SET common_user_count = (
     SELECT common_users_count
     FROM youtube_channel_common_twitter_users
-    WHERE channel_1 = trending_channel_id and
+    WHERE channel_1 = seed_channel_id and
           channel_2 = recommended_channel_id and
           creation_date = recommendation_date
 )
@@ -176,18 +176,18 @@ where
   youtube_graph_classification.relationship in ('KINSHIP', 'IDENTITY', 'OPPOSITION')
 """
 
-UPDATE_TRENDING_POLITICAL_LEANING = """
+UPDATE_SEED_POLITICAL_LEANING = """
 UPDATE recommendation
-SET trending_political_leaning = (
+SET seed_political_leaning = (
     select
         channel_political_leaning.political_leaning
     from
         channel_political_leaning
     where
         recommendation.recommendation_date = channel_political_leaning.related_date and
-        recommendation.trending_channel_id = channel_political_leaning.channel_id
+        recommendation.seed_channel_id = channel_political_leaning.channel_id
     )
-where recommendation.trending_political_leaning is null
+where recommendation.seed_political_leaning is null
 """
 
 UPDATE_RECOMMENDED_POLITICAL_LEANING = """
@@ -210,10 +210,10 @@ SET recommended_published_at = null, recommended_channel_id = null
 WHERE recommended_published_at = '' and recommended_channel_id = ''
 """
 
-UPDATE_NULL_TRENDING = """
+UPDATE_NULL_SEED = """
 UPDATE recommendation
-SET trending_published_at = null, trending_channel_id = null
-where trending_channel_id = '' and trending_published_at = ''
+SET seed_published_at = null, seed_channel_id = null
+where seed_channel_id = '' and seed_published_at = ''
 """
 
 CREATE_VIEW_ENHANCED_CHANNEL_STATS = """
@@ -302,22 +302,22 @@ set recommended_{field} = (
 where recommended_{field} is null
 """
 
-UPDATE_STAT_TRENDING = """
+UPDATE_STAT_SEED = """
 update recommendation
-set trending_{field} = (
+set seed_{field} = (
     select channel_stats_with_primary_key.{field}
     from channel_stats_with_primary_key
-    where channel_stats_with_primary_key.channel_id = recommendation.trending_channel_id and
+    where channel_stats_with_primary_key.channel_id = recommendation.seed_channel_id and
           channel_stats_with_primary_key.creation_date = recommendation.recommendation_date
     )
-where trending_{field} is null
+where seed_{field} is null
 """
 
 
 def add_stat_to_sqlite(database, field):
     logging.info('Add stat {field}...'.format(field=field))
-    database.execute("ALTER TABLE recommendation ADD COLUMN trending_{field} INT".format(field=field))
-    database.execute(UPDATE_STAT_TRENDING.format(field=field))
+    database.execute("ALTER TABLE recommendation ADD COLUMN seed_{field} INT".format(field=field))
+    database.execute(UPDATE_STAT_SEED.format(field=field))
     database.execute("ALTER TABLE recommendation ADD COLUMN recommended_{field} INT".format(field=field))
     database.execute(UPDATE_STAT_RECOMMENDED.format(field=field))
 
@@ -338,9 +338,9 @@ def import_data(related_date, end_related_date, graph_date_difference, timespan)
     database.execute(INSERT_TABLE_RECOMMENDATION)
     database.execute('DROP TABLE recommendation_aux')
     logging.info('Update categories and null values...')
-    database.execute(UPDATE_CATEGORY_TRENDING)
+    database.execute(UPDATE_CATEGORY_SEED)
     database.execute(UPDATE_CATEGORY_RECOMMENDED)
-    database.execute(UPDATE_NULL_TRENDING)
+    database.execute(UPDATE_NULL_SEED)
     database.execute(UPDATE_NULL_RECOMMENDED)
 
     logging.info('Retrieve Twitter users and YouTube channel data...')
@@ -361,8 +361,8 @@ def import_data(related_date, end_related_date, graph_date_difference, timespan)
                                                                             final_date=final_date))
         current_date = current_date + timedelta(days=1)
     logging.info('Update aggregate on SQLite table 1...')
-    database.execute("ALTER TABLE recommendation ADD COLUMN trending_user_count INT")
-    database.execute(UPDATE_TRENDING_USER_COUNT)
+    database.execute("ALTER TABLE recommendation ADD COLUMN seed_user_count INT")
+    database.execute(UPDATE_SEED_USER_COUNT)
     logging.info('Update aggregate on SQLite table 2...')
     database.execute("ALTER TABLE recommendation ADD COLUMN recommended_user_count INT")
     database.execute(UPDATE_RECOMMENDED_USER_COUNT)
@@ -375,8 +375,8 @@ def import_data(related_date, end_related_date, graph_date_difference, timespan)
                                               query=SELECT_POLITICAL_LEANING.format(initial_date=str(related_date),
                                                                                     final_date=str(end_related_date)))
     logging.info('Update political leaning info on SQLite 1...')
-    database.execute("ALTER TABLE recommendation ADD COLUMN trending_political_leaning TEXT")
-    database.execute(UPDATE_TRENDING_POLITICAL_LEANING)
+    database.execute("ALTER TABLE recommendation ADD COLUMN seed_political_leaning TEXT")
+    database.execute(UPDATE_SEED_POLITICAL_LEANING)
     logging.info('Update political leaning info on SQLite 1...')
     database.execute("ALTER TABLE recommendation ADD COLUMN recommended_political_leaning TEXT")
     database.execute(UPDATE_RECOMMENDED_POLITICAL_LEANING)
